@@ -1,17 +1,33 @@
-# Stable Diffusion 1.5 for the IMS Living Lab, as a RunPod serverless worker.
+# Stable Diffusion 1.5 or SDXL for the IMS Living Lab, as a RunPod serverless worker.
 #
-# Everything is baked in: A1111, the SD 1.5 checkpoint, the LatentLabs360 LoRA and the
-# asymmetric tiling extension. No network volume, on purpose: a volume pins the endpoint to
-# one data centre, and the old one (EU-SE-1) was closed by RunPod in Oct/Nov 2026, taking
-# the previous setup (everything on volume fa477vsdos) with it.
+#   docker build --build-arg MODEL=sd15 .   SD 1.5 + LatentLabs360          -> sd15-worker
+#   docker build --build-arg MODEL=sdxl .   SDXL base 1.0 + 360Redmond      -> sdxl-worker
+#
+# Everything is baked in: A1111, the checkpoint, the 360 LoRA and the asymmetric tiling
+# extension ("Seamless edges" on the lab page; it patches the conv layers, so it works on
+# both). No network volume, on purpose: a volume pins the endpoint to one data centre, and
+# the old one (EU-SE-1) was closed by RunPod in Oct/Nov 2026, taking the previous setup
+# (everything on volume fa477vsdos) with it.
+#
+# Licences: SD 1.5 CreativeML Open RAIL-M; SDXL base CreativeML Open RAIL++-M; LatentLabs360
+# and 360Redmond (artificialguybr) BigScience OpenRAIL-M. All allow redistribution and
+# commercial use of the output, with the RAIL use restrictions attached.
 
 # ---------------------------------------------------------------- models
 FROM alpine:3.20 AS download
-RUN apk add --no-cache wget && \
-    wget -q -O /model.safetensors \
-      https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.safetensors && \
-    wget -q -O /LatentLabs360.safetensors \
-      https://huggingface.co/AlanB/LatentLabs360/resolve/main/latentlabs360_v01.safetensors
+ARG MODEL=sd15
+RUN apk add --no-cache wget && mkdir -p /out/Lora && \
+    if [ "$MODEL" = sdxl ]; then \
+      wget -q -O /out/model.safetensors \
+        https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors && \
+      wget -q -O /out/Lora/360Redmond.safetensors \
+        https://huggingface.co/artificialguybr/360Redmond/resolve/main/View360.safetensors; \
+    else \
+      wget -q -O /out/model.safetensors \
+        https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.safetensors && \
+      wget -q -O /out/Lora/LatentLabs360.safetensors \
+        https://huggingface.co/AlanB/LatentLabs360/resolve/main/latentlabs360_v01.safetensors; \
+    fi
 
 # ---------------------------------------------------------------- A1111
 FROM python:3.10.14-slim
@@ -41,8 +57,8 @@ RUN git clone https://github.com/AUTOMATIC1111/stable-diffusion-webui.git && \
     python -c "from transformers import CLIPTokenizer, CLIPTextConfig; \
 CLIPTokenizer.from_pretrained('openai/clip-vit-large-patch14'); CLIPTextConfig.from_pretrained('openai/clip-vit-large-patch14')"
 
-COPY --from=download /model.safetensors /model.safetensors
-COPY --from=download /LatentLabs360.safetensors /stable-diffusion-webui/models/Lora/LatentLabs360.safetensors
+COPY --from=download /out/model.safetensors /model.safetensors
+COPY --from=download /out/Lora/ /stable-diffusion-webui/models/Lora/
 
 RUN pip install runpod==1.7.* requests
 COPY src/start.sh src/handler.py /

@@ -1,4 +1,5 @@
-# Builds the worker image and pushes it to GHCR. Point the RunPod endpoint at the commit
+# Builds the three worker images (sd15-worker, sdxl-worker, flux-worker), each on its own
+# runner for the disk space, and pushes them to GHCR. Point the RunPod endpoint at the commit
 # tag, not :latest: a serverless worker whose code changes between cold starts is hard to debug.
 name: Build worker
 on:
@@ -8,6 +9,13 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { model: sd15, file: Dockerfile }
+          - { model: sdxl, file: Dockerfile }
+          - { model: flux, file: Dockerfile.flux }
     permissions:
       contents: read
       packages: write
@@ -26,7 +34,9 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
+          file: ${{ matrix.file }}
           push: true
+          build-args: MODEL=${{ matrix.model }}
           tags: |
-            ghcr.io/${{ github.repository_owner }}/sd15-worker:latest
-            ghcr.io/${{ github.repository_owner }}/sd15-worker:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.model }}-worker:latest
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.model }}-worker:${{ github.sha }}

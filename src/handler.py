@@ -1,8 +1,8 @@
 """RunPod handler: forwards {"api": {"method", "endpoint"}, "payload"} to the local A1111 API.
 
-The same input shape as the worker it replaces (weihzh/runpod-worker-a1111), so the lab
-page (lab.intermediatespaces.com, MODELS.sd15) needs no change. Only /sdapi/v1/ endpoints
-are forwarded.
+The same input shape as the worker it replaced (weihzh/runpod-worker-a1111). Used by both
+images: sd15-worker (lab page MODELS.sd15) and sdxl-worker (MODELS.sdxl, since 3 Nov 2026).
+Only /sdapi/v1/ endpoints are forwarded.
 """
 import time
 
